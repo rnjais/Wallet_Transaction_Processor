@@ -1,18 +1,23 @@
 package com.assignment.wallet_transaction_processor.service;
 
-import org.springframework.stereotype.Service;
 import com.assignment.wallet_transaction_processor.dto.ProcessTransactionRequest;
 import com.assignment.wallet_transaction_processor.dto.TransactionResponse;
-import com.assignment.wallet_transaction_processor.repository.WalletRepository;
-import com.assignment.wallet_transaction_processor.repository.TransactionRepository;
-import com.assignment.wallet_transaction_processor.entity.Wallet;
-import org.springframework.transaction.annotation.Transactional;
 import com.assignment.wallet_transaction_processor.entity.Transaction;
+import com.assignment.wallet_transaction_processor.entity.Wallet;
 import com.assignment.wallet_transaction_processor.enums.TransactionStatus;
+import com.assignment.wallet_transaction_processor.exception.DuplicateTransactionException;
+import com.assignment.wallet_transaction_processor.exception.InsufficientFundsException;
+import com.assignment.wallet_transaction_processor.exception.WalletNotFoundException;
+import com.assignment.wallet_transaction_processor.repository.TransactionRepository;
+import com.assignment.wallet_transaction_processor.repository.WalletRepository;
+import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
+
 import java.time.LocalDateTime;
 
 @Service
 public class TransactionService {
+
     private final WalletRepository walletRepository;
     private final TransactionRepository transactionRepository;
 
@@ -25,21 +30,28 @@ public class TransactionService {
     }
 
     @Transactional
-    public TransactionResponse processTransaction(ProcessTransactionRequest request) {
+    public TransactionResponse processTransaction(
+            ProcessTransactionRequest request
+    ) {
 
         Wallet wallet = walletRepository.findByUserId(request.getUserId())
-                .orElseThrow(() -> new RuntimeException("Wallet not found"));
+                .orElseThrow(() ->
+                        new WalletNotFoundException("Wallet not found"));
 
         Transaction existingTransaction = transactionRepository
                 .findByTransactionId(request.getTransactionId())
                 .orElse(null);
 
         if (existingTransaction != null) {
-            throw new RuntimeException("Transaction already processed");
+            throw new DuplicateTransactionException(
+                    "Transaction already processed"
+            );
         }
 
         if (wallet.getBalance().compareTo(request.getAmount()) < 0) {
-            throw new RuntimeException("Insufficient funds");
+            throw new InsufficientFundsException(
+                    "Insufficient funds"
+            );
         }
 
         wallet.setBalance(
@@ -47,7 +59,6 @@ public class TransactionService {
         );
 
         walletRepository.save(wallet);
-        
 
         Transaction transaction = new Transaction(
                 request.getTransactionId(),
@@ -69,6 +80,5 @@ public class TransactionService {
                 wallet.getBalance(),
                 "Transaction processed successfully"
         );
-
     }
 }
